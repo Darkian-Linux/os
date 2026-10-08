@@ -36,6 +36,13 @@ for f in /etc/apt/sources.list.d/*.sources; do
 done
 log "$(grep -h 'deb ' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null | head -2 | tr '\n' ' ')"
 
+# The file: (live medium) repo only exists in a booted live session;
+# remove it so apt-get update succeeds inside the build chroot.
+for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
+  [[ -f "$f" ]] || continue
+  sed -i '\|file:/run/live/medium|d' "$f"
+done
+
 apt-get update
 
 # ---------------------------------------------------------------------------

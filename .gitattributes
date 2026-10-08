@@ -1,0 +1,6 @@
+# Normalize text files; keep shell scripts LF even on Windows checkouts.
+* text=auto
+*.sh text eol=lf
+*.bash text eol=lf
+*.png binary
+*.jpg binary
