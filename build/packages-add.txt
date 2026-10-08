@@ -22,7 +22,8 @@ flatpak
 # Gaming: FPS overlay / scheduler / CPU tuning
 mangohud
 gamemode
-cpupower
+linux-cpupower
+powertop
 
 # Graphics drivers & firmware (Intel / AMD / NVIDIA)
 mesa-vulkan-drivers
