@@ -149,10 +149,10 @@ log "[6/7] Boot menu, theme and checksums"
 GRUB_CFG="$ISO_DIR/boot/grub/grub.cfg"
 
 # Verbose text boot: strip 'quiet' and 'splash' kernel parameters
-find "$ISO_DIR/boot/grub" -name '*.cfg' -type f -print0 |
+find "$ISO_DIR/boot/grub" "$ISO_DIR/isolinux" -name '*.cfg' -type f -print0 |
   xargs -0 sed -ri 's/(^|[[:space:]])quiet([[:space:]]|$)/\1\2/g; s/(^|[[:space:]])splash([[:space:]]|$)/\1\2/g'
 
-# Rebrand menu titles
+# Rebrand GRUB menu entries
 if [[ -f "$GRUB_CFG" ]]; then
   sed -i \
     -e 's/menuentry "Live system (amd64)"/menuentry "Darkian Linux 13 (amd64)"/' \
@@ -160,13 +160,39 @@ if [[ -f "$GRUB_CFG" ]]; then
     "$GRUB_CFG"
 fi
 
-# GRUB theme background: replace a 1920x1080 PNG with the Darkian wallpaper
-while IFS= read -r -d '' png; do
-  if file "$png" | grep -q '1920 x 1080'; then
-    cp "$REPO_DIR/assets/wallpaper.png" "$png"
-    log "GRUB theme background replaced: $png"
-  fi
-done < <(find "$ISO_DIR/boot/grub" -name '*.png' -size +100k -print0 2>/dev/null)
+# Rebrand isolinux (BIOS) menu labels and title
+if [[ -d "$ISO_DIR/isolinux" ]]; then
+  find "$ISO_DIR/isolinux" -name '*.cfg' -type f -print0 |
+    xargs -0 sed -ri \
+      -e 's/Live system/Darkian Linux 13/g' \
+      -e 's/^menu title Boot menu$/menu title Darkian Linux 13/'
+fi
+
+# GRUB/isolinux splash: Debian wallpaper -> Darkian wallpaper, resized to the
+# menu's native resolution (GRUB 800x600, isolinux vesamenu 640x480).
+WALL="$REPO_DIR/assets/wallpaper.png"
+if [[ -f "$WALL" && -d "$ROOTFS" ]]; then
+  mkbg() { # size out
+    cp "$WALL" "$ROOTFS/tmp/dk-bg.png"
+    if chroot "$ROOTFS" /usr/bin/convert /tmp/dk-bg.png \
+        -resize "$1^" -gravity center -extent "$1" /tmp/dk-bg-out.png 2>/dev/null; then
+      cp "$ROOTFS/tmp/dk-bg-out.png" "$2"
+    else
+      warn "ImageMagick resize failed — using full-size wallpaper"
+      cp "$WALL" "$2"
+    fi
+    rm -f "$ROOTFS/tmp/dk-bg.png" "$ROOTFS/tmp/dk-bg-out.png"
+  }
+  mkbg 800x600 "$ISO_DIR/boot/grub/splash.png"
+  mkbg 640x480 "$ISO_DIR/isolinux/splash.png"
+  log "GRUB + isolinux splash replaced with Darkian wallpaper"
+fi
+
+# GRUB theme title line
+THEME_TXT="$ISO_DIR/boot/grub/live-theme/theme.txt"
+if [[ -f "$THEME_TXT" ]]; then
+  sed -i 's/^title-text: .*/title-text: "Darkian Linux 13"/' "$THEME_TXT"
+fi
 
 # Regenerate md5sum.txt (used by the 'Verify integrity' boot entry)
 log "Regenerating md5sum.txt"
