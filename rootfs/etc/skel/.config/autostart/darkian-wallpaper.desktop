@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Darkian Wallpaper
+Comment=Apply the Darkian Linux wallpaper once it has not been set yet
+Exec=sh -c 'grep -q "/usr/share/backgrounds/darkian" "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" 2>/dev/null || plasma-apply-wallpaperimage /usr/share/backgrounds/darkian/wallpaper.png >/dev/null 2>&1'
+X-KDE-autostart-phase=2
+NoDisplay=true

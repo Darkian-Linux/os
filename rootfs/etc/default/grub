@@ -1,0 +1,12 @@
+# If you change this file, run 'update-grub' to update /boot/grub/grub.cfg.
+
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+GRUB_DISTRIBUTOR="Darkian Linux"
+GRUB_CMDLINE_LINUX_DEFAULT=""
+GRUB_CMDLINE_LINUX=""
+
+# Try to use terminal text output instead of a graphical terminal.
+GRUB_TERMINAL=console
+GRUB_GFXMODE=1024x768
+GRUB_DISABLE_OS_PROBER=true

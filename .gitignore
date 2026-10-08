@@ -1,0 +1,10 @@
+# Build artifacts
+build/output/
+build/work/
+*.iso
+*.squashfs
+*.img
+
+# OS junk
+.DS_Store
+Thumbs.db

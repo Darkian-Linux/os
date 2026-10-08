@@ -1,0 +1,39 @@
+---
+componentName:   darkian
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 800px,580px
+windowPlacement: center
+
+strings:
+    productName:         Darkian Linux
+    shortProductName:    Darkian
+    version:             13
+    shortVersion:        13
+    versionedName:       Darkian Linux 13
+    shortVersionedName:  Darkian Linux 13
+    bootloaderEntryName: Darkian Linux
+    productUrl:          https://darkian.xyz
+    supportUrl:          https://darkian.xyz
+    knownIssuesUrl:      https://darkian.xyz
+    releaseNotesUrl:     https://darkian.xyz
+    donateUrl:           https://darkian.xyz
+
+sidebar: widget
+navigation: widget
+
+images:
+    productLogo:         "darkian-logo.png"
+    productIcon:         "darkian-logo.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+
+style:
+   SidebarBackground:    "#1b1b22"
+   SidebarText:          "#FFFFFF"
+   SidebarTextCurrent:   "#fbfbfb"
+   SidebarBackgroundCurrent: "#262630"
+
+slideshowAPI: 2

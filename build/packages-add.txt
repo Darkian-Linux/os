@@ -1,0 +1,29 @@
+# Darkian Linux — packages to ADD to the ISO
+# One package per line; '#' starts a comment. Globs are allowed.
+# Installed in a single apt transaction, with a per-package fallback retry.
+
+# Desktop apps
+vlc
+gwenview
+
+# Terminal tools
+htop
+btop
+fastfetch
+vim
+nano
+git
+curl
+wget
+
+# Flatpak support
+flatpak
+
+# Graphics drivers & firmware (Intel / AMD / NVIDIA)
+mesa-vulkan-drivers
+intel-media-va-driver-non-free
+firmware-amd-graphics
+firmware-iwlwifi
+firmware-realtek
+firmware-misc-nonfree
+nvidia-driver

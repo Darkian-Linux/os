@@ -1,0 +1,13 @@
+# Darkian Linux — packages to REMOVE from the ISO
+# Globs are supported; only packages that are actually present get purged.
+
+# Office suite (huge, ~1.5 GB)
+libreoffice*
+
+# Mail client & browser replacements (Firefox from Mozilla is preinstalled)
+thunderbird*
+firefox-esr
+firefox
+
+# Graphics editor not part of the Darkian default set
+gimp

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install Darkian Linux
+GenericName=System Installer
+Exec=calamares-install-debian
+Comment=Install Darkian Linux to disk
+Keywords=calamares;system;install;darkian;installer;
+Icon=darkian
+Terminal=false
+Categories=Qt;System;
+StartupWMClass=calamares
+StartupNotify=True
