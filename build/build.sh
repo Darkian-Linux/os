@@ -168,24 +168,16 @@ if [[ -d "$ISO_DIR/isolinux" ]]; then
       -e 's/^menu title Boot menu$/menu title Darkian Linux 13/'
 fi
 
-# GRUB/isolinux splash: Debian wallpaper -> Darkian wallpaper, resized to the
-# menu's native resolution (GRUB 800x600, isolinux vesamenu 640x480).
-WALL="$REPO_DIR/assets/wallpaper.png"
-if [[ -f "$WALL" && -d "$ROOTFS" ]]; then
+# GRUB/isolinux splash: plain black background (GRUB 800x600, isolinux 640x480)
+if [[ -d "$ROOTFS" ]]; then
   mkbg() { # size out
-    cp "$WALL" "$ROOTFS/tmp/dk-bg.png"
-    if chroot "$ROOTFS" /usr/bin/convert /tmp/dk-bg.png \
-        -resize "$1^" -gravity center -extent "$1" /tmp/dk-bg-out.png 2>/dev/null; then
-      cp "$ROOTFS/tmp/dk-bg-out.png" "$2"
-    else
-      warn "ImageMagick resize failed — using full-size wallpaper"
-      cp "$WALL" "$2"
-    fi
-    rm -f "$ROOTFS/tmp/dk-bg.png" "$ROOTFS/tmp/dk-bg-out.png"
+    chroot "$ROOTFS" /usr/bin/convert -size "$1" xc:black png:/tmp/dk-bg-out.png
+    cp "$ROOTFS/tmp/dk-bg-out.png" "$2"
+    rm -f "$ROOTFS/tmp/dk-bg-out.png"
   }
   mkbg 800x600 "$ISO_DIR/boot/grub/splash.png"
   mkbg 640x480 "$ISO_DIR/isolinux/splash.png"
-  log "GRUB + isolinux splash replaced with Darkian wallpaper"
+  log "GRUB + isolinux splash set to plain black"
 fi
 
 # GRUB theme title line
