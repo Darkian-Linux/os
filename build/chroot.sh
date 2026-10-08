@@ -131,17 +131,19 @@ fi
 log "7/12  Installing XanMod kernel (used on the installed system)"
 # ---------------------------------------------------------------------------
 if [[ "$ENABLE_XANMOD" == "true" ]]; then
-  command -v gpg >/dev/null || apt-get install -y gnupg
-  if curl -fsSL https://dl.xanmod.org/archive.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive.gpg; then
-    echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive.gpg arch=amd64] http://deb.xanmod.org trixie main' \
+  # apt reads ASCII-armored keys in trusted.gpg.d directly (no gpg needed).
+  if curl -fsSL --max-time 180 https://dl.xanmod.org/archive.key \
+      -o /etc/apt/trusted.gpg.d/xanmod-archive.asc; then
+    echo 'deb [arch=amd64] http://deb.xanmod.org trixie main' \
       > /etc/apt/sources.list.d/xanmod-archive.list
-    if apt-get update && apt-get install -y linux-xanmod; then
+    if apt-get update && apt-get install -y linux-xanmod-x64v3; then
+      log "XanMod x64v3 kernel installed (live session still boots the stock kernel)"
+    elif apt-get install -y linux-xanmod; then
       log "XanMod kernel installed (live session still boots the stock kernel)"
-    elif apt-get install -y linux-xanmod-x64v3; then
-      log "XanMod x64v3 kernel installed"
     else
       warn "XanMod unavailable — keeping the stock Debian kernel only"
-      rm -f /etc/apt/sources.list.d/xanmod-archive.list
+      rm -f /etc/apt/sources.list.d/xanmod-archive.list \
+            /etc/apt/trusted.gpg.d/xanmod-archive.asc
       apt-get update || true
     fi
   else
