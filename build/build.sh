@@ -197,7 +197,7 @@ rm -f "$OUT_ISO"
 sha256sum "$OUT_ISO" > "$OUT_ISO.sha256"
 
 log "Verifying output ISO structure"
-xorriso -indev "$OUT_ISO" -report el_torito >/dev/null 2>&1 \
+xorriso -indev "$OUT_ISO" -report_el_torito plain >/dev/null 2>&1 \
   || die "output ISO has no El Torito boot record"
 
 mkdir -p "$REPO_DIR/build/output"

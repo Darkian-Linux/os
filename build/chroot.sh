@@ -132,8 +132,8 @@ log "7/12  Installing XanMod kernel (used on the installed system)"
 # ---------------------------------------------------------------------------
 if [[ "$ENABLE_XANMOD" == "true" ]]; then
   command -v gpg >/dev/null || apt-get install -y gnupg
-  if curl -fsSL https://dl.xanmod.org/gpg.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive.gpg; then
-    echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive.gpg arch=amd64] http://deb.xanmod.org releases main' \
+  if curl -fsSL https://dl.xanmod.org/archive.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive.gpg; then
+    echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive.gpg arch=amd64] http://deb.xanmod.org trixie main' \
       > /etc/apt/sources.list.d/xanmod-archive.list
     if apt-get update && apt-get install -y linux-xanmod; then
       log "XanMod kernel installed (live session still boots the stock kernel)"
