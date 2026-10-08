@@ -10,4 +10,4 @@ firefox-esr
 firefox
 
 # Graphics editor not part of the Darkian default set
-gimp
+gimp*

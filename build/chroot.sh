@@ -67,6 +67,17 @@ mapfile -t REMOVE_PKGS < <(
 if ((${#REMOVE_PKGS[@]})); then
   log "Purging: ${REMOVE_PKGS[*]}"
   apt-get purge -y "${REMOVE_PKGS[@]}" || warn "purge reported problems (continuing)"
+  # Sweep stragglers if the purge transaction aborted midway.
+  mapfile -t LEFTOVERS < <(
+    printf '%s\n' "${REMOVE_PKGS[@]}" | while IFS= read -r p; do
+      dpkg-query -W -f='${Package} ${db:Status-Status}\n' "$p" 2>/dev/null || true
+    done | awk '$2=="installed"{print $1}'
+  )
+  if ((${#LEFTOVERS[@]})); then
+    warn "Purge leftovers, forcing removal: ${LEFTOVERS[*]}"
+    dpkg --purge --force-depends "${LEFTOVERS[@]}" || true
+    apt-get -f install -y || true
+  fi
 else
   log "nothing to remove"
 fi
@@ -136,12 +147,22 @@ if [[ "$ENABLE_XANMOD" == "true" ]]; then
       -o /etc/apt/trusted.gpg.d/xanmod-archive.asc; then
     echo 'deb [arch=amd64] http://deb.xanmod.org trixie main' \
       > /etc/apt/sources.list.d/xanmod-archive.list
-    if apt-get update && apt-get install -y linux-xanmod-x64v3; then
-      log "XanMod x64v3 kernel installed (live session still boots the stock kernel)"
-    elif apt-get install -y linux-xanmod; then
+    if ! apt-get update || ! apt-get install -y linux-xanmod-x64v3; then
+      # The NVIDIA 550 DKMS module does not build against XanMod 7.x.
+      # Kernel + initrd are fine; drop the DKMS tree (prebuilt stock-kernel
+      # .ko files under /lib/modules are untouched) and force dpkg to finish.
+      warn "XanMod install: forcing configure (nvidia DKMS skipped for XanMod)"
+      rm -rf /var/lib/dkms/nvidia-current
+      dpkg --configure -a || true
+      apt-get -f install -y || true
+    fi
+    if ls /boot/vmlinuz-*-xanmod1 >/dev/null 2>&1 \
+       && dpkg-query -W -f='${db:Status-Status}' 'linux-image-*-xanmod1' 2>/dev/null | grep -qx installed; then
       log "XanMod kernel installed (live session still boots the stock kernel)"
     else
       warn "XanMod unavailable — keeping the stock Debian kernel only"
+      mapfile -t XP < <(dpkg-query -W -f='${Package}\n' 'linux*xanmod*' 2>/dev/null || true)
+      if ((${#XP[@]})); then dpkg --purge --force-depends "${XP[@]}" || true; fi
       rm -f /etc/apt/sources.list.d/xanmod-archive.list \
             /etc/apt/trusted.gpg.d/xanmod-archive.asc
       apt-get update || true
