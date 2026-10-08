@@ -46,12 +46,14 @@ done
 apt-get update
 
 # ---------------------------------------------------------------------------
-log "2/12  Adding i386 multiarch (Steam)"
+log "2/12  Locale (fix setlocale errors) + i386 multiarch"
 # ---------------------------------------------------------------------------
-if [[ "$ENABLE_STEAM" == "true" ]]; then
-  dpkg --add-architecture i386
-  apt-get update
-fi
+echo 'LANG=en_US.UTF-8' > /etc/default/locale
+sed -ri 's/^# *(en_US\.UTF-8)/\1/' /etc/locale.gen
+locale-gen en_US.UTF-8 || warn "locale-gen failed"
+# i386 is no longer needed (Steam comes from Flathub); kept for rare 32-bit deps.
+dpkg --add-architecture i386
+apt-get update
 
 # ---------------------------------------------------------------------------
 log "3/12  Removing unwanted packages"
@@ -132,10 +134,17 @@ if [[ ! -f /usr/share/applications/firefox.desktop && -f /usr/share/applications
 fi
 
 # ---------------------------------------------------------------------------
-log "6/12  Installing Steam"
+log "6/12  Installing Steam + ProtonPlus (Flathub flatpaks)"
 # ---------------------------------------------------------------------------
 if [[ "$ENABLE_STEAM" == "true" ]]; then
-  apt-get install -y steam-installer || apt-get install -y steam || warn "Steam unavailable"
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+    || warn "could not add flathub remote"
+  # Full Steam client (not the deb installer stub)
+  flatpak install -y --noninteractive flathub com.valvesoftware.Steam \
+    || warn "Steam flatpak install failed"
+  # ProtonPlus — Proton/GE-Proton version manager
+  flatpak install -y --noninteractive flathub com.github.Vysp3r.ProtonPlus \
+    || warn "ProtonPlus flatpak install failed"
 fi
 
 # ---------------------------------------------------------------------------
@@ -234,10 +243,100 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-log "11/12  Live session identity"
+log "11/12  Live identity, password, desktop polish"
 # ---------------------------------------------------------------------------
 log "hostname: $(cat /etc/hostname)"
 log "live user: $(grep -E '^(LIVE_USERNAME|LIVE_USER_FULLNAME)=' /etc/live/config.conf | tr '\n' ' ')"
+
+# Live password: live-config runs hooks from /lib/live/config/hooks at boot.
+install -d -m 0755 /lib/live/config/hooks
+cat > /lib/live/config/hooks/9999-darkian-password.sh <<'HOOK'
+# Set the live user's password on every boot (live-config runs this in the
+# live session, after the user account has been created).
+if id "${LIVE_USERNAME:-darkian}" >/dev/null 2>&1; then
+  echo "${LIVE_USERNAME:-darkian}:${LIVE_PASSWORD:-darkianlinux}" | chpasswd
+fi
+HOOK
+chmod 755 /lib/live/config/hooks/9999-darkian-password.sh
+
+# Calamares: allow easy (short/simple) passwords on the installed system.
+install -d -m 0755 /etc/calamares/modules
+cat > /etc/calamares/modules/users.conf <<'USERS'
+---
+defaultGroups:
+  - audio
+  - cdrom
+  - dip
+  - floppy
+  - lpadmin
+  - netdev
+  - plugdev
+  - sudo
+  - users
+  - video
+setHostname: true
+savePassword: false
+passwordRequirements:
+  minLength: 0
+  minEntropyBits: 0
+USERS
+chmod 644 /etc/calamares/modules/users.conf
+
+# Hide the keyboard-layout applet from the Plasma system tray (single-layout
+# default; avoids the "layout switcher" clutter). Runs once per user session.
+install -d -m 0755 /usr/local/bin
+cat > /usr/local/bin/darkian-hide-keyboard <<'KBSCRIPT'
+#!/bin/bash
+# Remove the keyboard-layout indicator from the Plasma system tray.
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if qdbus org.kde.plasmashell /PlasmaShell \
+      org.kde.PlasmaShell.evaluateScript \
+      "var ds=desktops();for(var i=0;i<ds.length;i++){var w=ds[i].widgetForType('org.kde.plasma.keyboardindicator');if(w){w.remove();}}" \
+      >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 3
+done
+exit 0
+KBSCRIPT
+chmod 755 /usr/local/bin/darkian-hide-keyboard
+
+install -d -m 0755 /etc/skel/.config/autostart
+cat > /etc/skel/.config/autostart/darkian-hide-keyboard.desktop <<'KB'
+[Desktop Entry]
+Type=Application
+Name=Hide keyboard layout applet
+Exec=/usr/local/bin/darkian-hide-keyboard
+X-KDE-autostart-phase=2
+NoDisplay=true
+KB
+chmod 644 /etc/skel/.config/autostart/darkian-hide-keyboard.desktop
+
+# Calamares window/launcher icon = Darkian circle logo
+if [[ -f /tmp/dk/darkian.png ]]; then
+  for d in /usr/share/pixmaps /usr/share/icons/hicolor/256x256/apps; do
+    install -d -m 0755 "$d"
+    cp /tmp/dk/darkian.png "$d/calamares.png"
+  done
+  for df in /usr/share/applications/calamares*.desktop; do
+    [[ -f "$df" ]] && sed -i 's/^Icon=.*/Icon=calamares/' "$df"
+  done
+fi
+
+# Fastfetch: custom Darkian ASCII logo (replaces Debian logo)
+install -d -m 0755 /usr/share/fastfetch /etc/fastfetch
+if [[ -f /tmp/dk/darkian-ascii.txt ]]; then
+  cp /tmp/dk/darkian-ascii.txt /usr/share/fastfetch/darkian.txt
+  chmod 644 /usr/share/fastfetch/darkian.txt
+fi
+cat > /etc/fastfetch/config.jsonc <<'FF'
+{
+  "logo": {
+    "source": "/usr/share/fastfetch/darkian.txt"
+  }
+}
+FF
+chmod 644 /etc/fastfetch/config.jsonc
 
 # Fresh machine-id / systemd state so the first boot generates its own
 : > /etc/machine-id

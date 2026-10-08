@@ -1,10 +1,10 @@
 # Darkian Linux — packages to ADD to the ISO
 # One package per line; '#' starts a comment. Globs are allowed.
-# Installed in a single apt transaction, with a per-package fallback retry.
 
 # Desktop apps
 vlc
 gwenview
+konsole
 
 # Terminal tools
 htop
@@ -16,14 +16,21 @@ git
 curl
 wget
 
-# Flatpak support
+# Flatpak (Steam + ProtonPlus are installed from Flathub in chroot.sh)
 flatpak
+
+# Gaming: FPS overlay / scheduler / CPU tuning
+mangohud
+gamemode
+cpupower
 
 # Graphics drivers & firmware (Intel / AMD / NVIDIA)
 mesa-vulkan-drivers
+mesa-vdpau-drivers
 intel-media-va-driver-non-free
 firmware-amd-graphics
 firmware-iwlwifi
 firmware-realtek
 firmware-misc-nonfree
+firmware-linux
 nvidia-driver

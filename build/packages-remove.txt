@@ -4,10 +4,43 @@
 # Office suite (huge, ~1.5 GB)
 libreoffice*
 
-# Mail client & browser replacements (Firefox from Mozilla is preinstalled)
+# Mail client & browser replacements (Firefox from Mozilla is installed later)
 thunderbird*
 firefox-esr
 firefox
 
 # Graphics editor not part of the Darkian default set
 gimp*
+
+# Unwanted apps / DE clutter
+goldendict-ng
+fortune*
+imagemagick*
+kontrast
+okular
+akregator
+kaddressbook*
+kmail*
+korganizer*
+kontact*
+kdepim*
+konqueror
+juk
+dragonplayer
+kdeconnect*
+fcitx*
+fcitx5*
+mozc*
+anthy*
+kwalletmanager*
+nvidia-settings
+debian-reference*
+kmouth
+kmousetool
+thaixterm
+sieveeditor
+ktnef
+
+# Deb Steam is replaced by the full Flatpak Steam client
+steam-installer
+steam

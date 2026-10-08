@@ -105,7 +105,8 @@ cp "$SCRIPT_DIR/config.env" \
    "$SCRIPT_DIR/packages-remove.txt" "$ROOTFS/tmp/dk/"
 cp "$REPO_DIR/assets/darkian.png" \
    "$REPO_DIR/assets/darkian_square.png" \
-   "$REPO_DIR/assets/wallpaper.png" "$ROOTFS/tmp/dk/"
+   "$REPO_DIR/assets/wallpaper.png" \
+   "$REPO_DIR/assets/darkian-ascii.txt" "$ROOTFS/tmp/dk/"
 cp "$SCRIPT_DIR/chroot.sh" "$ROOTFS/tmp/chroot.sh"
 
 rm -f "$ROOTFS/etc/resolv.conf"
@@ -168,16 +169,29 @@ if [[ -d "$ISO_DIR/isolinux" ]]; then
       -e 's/^menu title Boot menu$/menu title Darkian Linux 13/'
 fi
 
-# GRUB/isolinux splash: plain black background (GRUB 800x600, isolinux 640x480)
-if [[ -d "$ROOTFS" ]]; then
-  mkbg() { # size out
-    chroot "$ROOTFS" /usr/bin/convert -size "$1" xc:black png:/tmp/dk-bg-out.png
-    cp "$ROOTFS/tmp/dk-bg-out.png" "$2"
-    rm -f "$ROOTFS/tmp/dk-bg-out.png"
-  }
-  mkbg 800x600 "$ISO_DIR/boot/grub/splash.png"
-  mkbg 640x480 "$ISO_DIR/isolinux/splash.png"
+# GRUB/isolinux splash: plain black background from repo assets
+# (generated once; imagemagick is purged from the final image)
+if [[ -f "$REPO_DIR/assets/splash-black-800x600.png" ]]; then
+  cp "$REPO_DIR/assets/splash-black-800x600.png" "$ISO_DIR/boot/grub/splash.png"
+  cp "$REPO_DIR/assets/splash-black-640x480.png" "$ISO_DIR/isolinux/splash.png"
   log "GRUB + isolinux splash set to plain black"
+else
+  warn "black splash assets missing — keeping stock backgrounds"
+fi
+
+# Remove the installer menu entries: this ISO is live-only; Calamares is
+# launched from the desktop once the user is inside the session.
+# The installer block runs from the "# Installer (if any)" comment through
+# the first non-indented "fi". Every "fi" inside the Utilities submenu is
+# tab-indented, so ^fi$ only matches the installer block's closer.
+if [[ -f "$GRUB_CFG" ]]; then
+  sed -i '/^# Installer (if any)$/,/^fi$/d' "$GRUB_CFG"
+fi
+if [[ -d "$ISO_DIR/isolinux" ]]; then
+  # isolinux: drop the include of install.cfg (whole installer submenu) and
+  # delete the file so it can't be pulled in by anything else.
+  sed -ri '/^include install\.cfg$/d' "$ISO_DIR/isolinux/"*.cfg 2>/dev/null || true
+  rm -f "$ISO_DIR/isolinux/install.cfg"
 fi
 
 # GRUB theme title line
