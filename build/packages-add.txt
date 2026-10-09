@@ -5,6 +5,16 @@
 vlc
 gwenview
 konsole
+kcalc
+
+# Development tooling
+zsh
+python3
+python3-venv
+python3-pip
+nodejs
+npm
+gh
 
 # Terminal tools
 htop

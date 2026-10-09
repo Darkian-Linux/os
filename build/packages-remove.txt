@@ -37,9 +37,16 @@ nvidia-settings
 debian-reference*
 kmouth
 kmousetool
-thaixterm
 sieveeditor
 ktnef
+
+# Legacy / old terminal emulators (konsole is the Darkian terminal)
+thaixterm
+aterm
+eterm
+rxvt
+rxvt-unicode
+mlterm
 
 # Deb Steam is replaced by the full Flatpak Steam client
 steam-installer

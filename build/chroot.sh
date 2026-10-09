@@ -130,7 +130,22 @@ fi
 
 # Keep the default-browser config pointing at whichever Firefox exists.
 if [[ ! -f /usr/share/applications/firefox.desktop && -f /usr/share/applications/firefox-esr.desktop ]]; then
-  sed -i 's/firefox\.desktop/firefox-esr.desktop/g' /etc/skel/.config/mimeapps.list 2>/dev/null || true
+  sed -i 's/firefox\.desktop/firefox-esr\.desktop/g' /etc/skel/.config/mimeapps.list 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
+log "5b/12  Installing Visual Studio Code (Microsoft repo)"
+# ---------------------------------------------------------------------------
+install -d -m 0755 /etc/apt/keyrings
+if curl -fsSL --max-time 120 https://packages.microsoft.com/keys/microsoft.asc \
+     -o /etc/apt/keyrings/microsoft.asc; then
+  # apt reads ASCII-armored keys directly (no gpg --dearmor, which hangs in chroot)
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/code stable main" \
+    > /etc/apt/sources.list.d/vscode.list
+  apt-get update || true
+  apt-get install -y code || warn "VS Code install failed"
+else
+  warn "could not fetch Microsoft signing key — skipping VS Code"
 fi
 
 # ---------------------------------------------------------------------------
@@ -145,7 +160,16 @@ if [[ "$ENABLE_STEAM" == "true" ]]; then
   # ProtonPlus — Proton/GE-Proton version manager
   flatpak install -y --noninteractive flathub com.github.Vysp3r.ProtonPlus \
     || warn "ProtonPlus flatpak install failed"
+  # ProtonUp-Qt — the classic Proton-GE installer/manager
+  flatpak install -y --noninteractive flathub net.davidotek.pupgui2 \
+    || warn "ProtonUp-Qt flatpak install failed"
 fi
+
+# Prism Launcher (Minecraft) via Flathub — always available
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+  || warn "could not add flathub remote"
+flatpak install -y --noninteractive flathub org.prismlauncher.PrismLauncher \
+  || warn "Prism Launcher flatpak install failed"
 
 # ---------------------------------------------------------------------------
 log "7/12  Installing XanMod kernel (used on the installed system)"
@@ -207,10 +231,32 @@ mkdir -p /usr/share/pixmaps
 cp /tmp/dk/darkian.png /usr/share/pixmaps/darkian.png
 cp /tmp/dk/darkian.png /usr/share/pixmaps/distributor-logo-darkian.png
 
-# Drop stale Debian/start-here icons from other themes so hicolor wins.
-find /usr/share/icons -path '*/hicolor/*' -prune -o -type f \
-  \( -name 'start-here*' -o -name 'distributor-logo-debian*' -o -name 'debian-logo*' \) \
-  -print0 2>/dev/null | xargs -0 -r rm -f
+# The Plasma app launcher (start menu / taskbar start button) resolves the
+# icon name "start-here" in the ACTIVE theme (breeze). Breeze ships
+# start-here*.svg as SYMLINKS to folder-activities.svg (and .svgz for some
+# themes), and the plain hicolor fallbacks are not preferred — so deleting or
+# ignoring them leaves the KDE gear. Break each symlink/file and write the
+# Darkian logo in place (rm first so cp does NOT follow the link and clobber
+# the shared folder-activities.svg target).
+DK_SVG=/tmp/dk/darkian_square.svg
+if [[ -f "$DK_SVG" ]]; then
+  n=0
+  while IFS= read -r -d '' f; do
+    case "$f" in
+      *.svgz) rm -f "$f"; gzip -c "$DK_SVG" > "$f"; n=$((n+1)) ;;
+      *.svg)  rm -f "$f"; cp "$DK_SVG" "$f"; n=$((n+1)) ;;
+      *.png)
+        sz=$(basename "$(dirname "$f")")
+        src="/usr/share/icons/hicolor/${sz}/apps/start-here.png"
+        if [[ -f "$src" ]]; then rm -f "$f"; cp "$src" "$f"; n=$((n+1)); fi ;;
+    esac
+  done < <(find /usr/share/icons -name 'start-here*' ! -path '*/hicolor/*' -print0 2>/dev/null)
+  log "Replaced $n start-here icons with the Darkian logo"
+fi
+
+# Drop stale Debian logos from other themes so hicolor wins as fallback.
+find /usr/share/icons -name 'distributor-logo-debian*' ! -path '*/hicolor/*' -print0 2>/dev/null | xargs -0 -r rm -f
+find /usr/share/icons -name 'debian-logo*' ! -path '*/hicolor/*' -print0 2>/dev/null | xargs -0 -r rm -f
 # Also replace Debian's own hicolor logos with ours (same filename).
 for stale in "$ICONS"/*/apps/debian-logo.png "$ICONS"/*/apps/debian-logo.svg; do
   [[ -f "$stale" ]] && rm -f "$stale"
@@ -259,6 +305,39 @@ fi
 HOOK
 chmod 755 /lib/live/config/hooks/9999-darkian-password.sh
 
+# Make ZSH the default shell for the live user at boot.
+cat > /lib/live/config/hooks/9998-darkian-shell.sh <<'HOOK'
+if id "${LIVE_USERNAME:-darkian}" >/dev/null 2>&1; then
+  usermod -s /usr/bin/zsh "${LIVE_USERNAME:-darkian}" 2>/dev/null \
+    || chsh -s /usr/bin/zsh "${LIVE_USERNAME:-darkian}" 2>/dev/null || true
+fi
+HOOK
+chmod 755 /lib/live/config/hooks/9998-darkian-shell.sh
+
+# ZSH: Darkian prompt for every user + ZSH as the default shell for new accounts.
+if [[ -x /usr/bin/zsh ]]; then
+  cat >> /etc/zsh/zshrc <<'ZRC'
+
+# --- Darkian prompt: user@hostname (place)% with white/red colours ---
+autoload -Uz colors 2>/dev/null && colors
+PROMPT='%F{white}%n%F{red}@%F{white}%m %F{white}(%F{red}%~%F{white})%F{white}%#%f '
+ZRC
+  # Default shell for accounts created later (Calamares uses userShell in users.conf)
+  if grep -q '^DSHELL=' /etc/adduser.conf 2>/dev/null; then
+    sed -i 's|^DSHELL=.*|DSHELL=/usr/bin/zsh|' /etc/adduser.conf
+  else
+    echo 'DSHELL=/usr/bin/zsh' >> /etc/adduser.conf
+  fi
+  if grep -q '^SHELL=' /etc/default/useradd 2>/dev/null; then
+    sed -i 's|^SHELL=.*|SHELL=/usr/bin/zsh|' /etc/default/useradd
+  else
+    echo 'SHELL=/usr/bin/zsh' >> /etc/default/useradd
+  fi
+  log "ZSH configured as default shell with Darkian prompt"
+else
+  warn "zsh not installed — leaving bash as the default shell"
+fi
+
 # Calamares: allow easy (short/simple) passwords on the installed system.
 install -d -m 0755 /etc/calamares/modules
 cat > /etc/calamares/modules/users.conf <<'USERS'
@@ -276,6 +355,7 @@ defaultGroups:
   - video
 setHostname: true
 savePassword: false
+userShell: /usr/bin/zsh
 passwordRequirements:
   minLength: 0
   minEntropyBits: 0
