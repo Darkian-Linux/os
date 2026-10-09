@@ -134,42 +134,17 @@ if [[ ! -f /usr/share/applications/firefox.desktop && -f /usr/share/applications
 fi
 
 # ---------------------------------------------------------------------------
-log "5b/12  Installing Visual Studio Code (Microsoft repo)"
+log "6/12  Setting up Flatpak (Flathub remote, no apps preinstalled)"
 # ---------------------------------------------------------------------------
-install -d -m 0755 /etc/apt/keyrings
-if curl -fsSL --max-time 120 https://packages.microsoft.com/keys/microsoft.asc \
-     -o /etc/apt/keyrings/microsoft.asc; then
-  # apt reads ASCII-armored keys directly (no gpg --dearmor, which hangs in chroot)
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/repos/code stable main" \
-    > /etc/apt/sources.list.d/vscode.list
-  apt-get update || true
-  apt-get install -y code || warn "VS Code install failed"
-else
-  warn "could not fetch Microsoft signing key — skipping VS Code"
-fi
-
-# ---------------------------------------------------------------------------
-log "6/12  Installing Steam + ProtonPlus (Flathub flatpaks)"
-# ---------------------------------------------------------------------------
-if [[ "$ENABLE_STEAM" == "true" ]]; then
+# No flatpak apps/runtimes are preinstalled (keeps the image small). The
+# Flathub remote is ready so users can install e.g.
+#   flatpak install flathub com.valvesoftware.Steam
+if command -v flatpak >/dev/null 2>&1; then
   flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
     || warn "could not add flathub remote"
-  # Full Steam client (not the deb installer stub)
-  flatpak install -y --noninteractive flathub com.valvesoftware.Steam \
-    || warn "Steam flatpak install failed"
-  # ProtonPlus — Proton/GE-Proton version manager
-  flatpak install -y --noninteractive flathub com.github.Vysp3r.ProtonPlus \
-    || warn "ProtonPlus flatpak install failed"
-  # ProtonUp-Qt — the classic Proton-GE installer/manager
-  flatpak install -y --noninteractive flathub net.davidotek.pupgui2 \
-    || warn "ProtonUp-Qt flatpak install failed"
+else
+  warn "flatpak not installed — skipping Flathub remote"
 fi
-
-# Prism Launcher (Minecraft) via Flathub — always available
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
-  || warn "could not add flathub remote"
-flatpak install -y --noninteractive flathub org.prismlauncher.PrismLauncher \
-  || warn "Prism Launcher flatpak install failed"
 
 # ---------------------------------------------------------------------------
 log "7/12  Installing XanMod kernel (used on the installed system)"
@@ -320,7 +295,7 @@ if [[ -x /usr/bin/zsh ]]; then
 
 # --- Darkian prompt: user@hostname (place)% with white/red colours ---
 autoload -Uz colors 2>/dev/null && colors
-PROMPT='%F{white}%n%F{red}@%F{white}%m %F{white}(%F{red}%~%F{white})%F{white}%#%f '
+PROMPT='%F{white}%n%F{red}@%F{white}%m %F{white}(%F{red}%~%F{white})%F{white}%%%f '
 ZRC
   # Default shell for accounts created later (Calamares uses userShell in users.conf)
   if grep -q '^DSHELL=' /etc/adduser.conf 2>/dev/null; then
