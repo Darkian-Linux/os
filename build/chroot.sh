@@ -195,7 +195,7 @@ ICONS=/usr/share/icons/hicolor
 for s in 16 22 24 32 48 64 128 256 512; do
   d="$ICONS/${s}x${s}/apps"
   mkdir -p "$d"
-  convert /tmp/dk/darkian_square.png -resize "${s}x${s}" "$d/start-here.png"
+  convert /tmp/dk/darkian.png -resize "${s}x${s}" "$d/start-here.png"
   cp "$d/start-here.png" "$d/darkian.png"
   cp "$d/start-here.png" "$d/distributor-logo-darkian.png"
   cp "$d/start-here.png" "$d/distributor-logo-debian.png"
@@ -211,9 +211,15 @@ cp /tmp/dk/darkian.png /usr/share/pixmaps/distributor-logo-darkian.png
 # start-here*.svg as SYMLINKS to folder-activities.svg (and .svgz for some
 # themes), and the plain hicolor fallbacks are not preferred — so deleting or
 # ignoring them leaves the KDE gear. Break each symlink/file and write the
-# Darkian logo in place (rm first so cp does NOT follow the link and clobber
-# the shared folder-activities.svg target).
-DK_SVG=/tmp/dk/darkian_square.svg
+# Darkian circle logo in place (rm first so cp does NOT follow the link and
+# clobber the shared folder-activities.svg target).
+#
+# IMPORTANT: do NOT touch any "start-here-kde*" icon — in Breeze these are the
+# KDE-branded icons (start-here-kde-plasma.svg is a symlink to start-here-kde.svg,
+# and the *-symbolic variants link to folder-activities.svg) that the KDE Welcome
+# Center uses, and it must stay KDE. The launcher itself is pointed at our own
+# "darkian" icon below.
+DK_SVG=/tmp/dk/darkian.svg
 if [[ -f "$DK_SVG" ]]; then
   n=0
   while IFS= read -r -d '' f; do
@@ -225,8 +231,22 @@ if [[ -f "$DK_SVG" ]]; then
         src="/usr/share/icons/hicolor/${sz}/apps/start-here.png"
         if [[ -f "$src" ]]; then rm -f "$f"; cp "$src" "$f"; n=$((n+1)); fi ;;
     esac
-  done < <(find /usr/share/icons -name 'start-here*' ! -path '*/hicolor/*' -print0 2>/dev/null)
-  log "Replaced $n start-here icons with the Darkian logo"
+  done < <(find /usr/share/icons -name 'start-here*' \
+             ! -name 'start-here-kde*' \
+             ! -path '*/hicolor/*' -print0 2>/dev/null)
+  log "Replaced $n Darkian start-here icons (all start-here-kde* left intact for the Welcome Center)"
+fi
+
+# Point the launcher (kickoff) panel button at our own "darkian" icon. Its
+# default "start-here-kde-symbolic" is shared with the KDE Welcome Center, so
+# overriding it here brands the start menu without affecting the Welcome Center.
+KICKOFF=/usr/share/plasma/plasmoids/org.kde.plasma.kickoff
+if [[ -f "$KICKOFF/contents/config/main.xml" ]]; then
+  sed -i 's#<default>start-here-kde-symbolic</default>#<default>darkian</default>#' \
+    "$KICKOFF/contents/config/main.xml"
+fi
+if [[ -f "$KICKOFF/metadata.json" ]]; then
+  sed -i 's#"Icon": *"start-here-kde"#"Icon": "darkian"#' "$KICKOFF/metadata.json"
 fi
 
 # Drop stale Debian logos from other themes so hicolor wins as fallback.
@@ -388,7 +408,39 @@ cat > /etc/fastfetch/config.jsonc <<'FF'
 {
   "logo": {
     "source": "/usr/share/fastfetch/darkian.txt"
-  }
+  },
+  "display": {
+    "separator": ": "
+  },
+  "modules": [
+    "title",
+    "separator",
+    "os",
+    "host",
+    "kernel",
+    "uptime",
+    "packages",
+    "shell",
+    "display",
+    "de",
+    "wm",
+    "wmtheme",
+    "theme",
+    "icons",
+    "cursor",
+    "terminal",
+    "cpu",
+    "gpu",
+    "memory",
+    "swap",
+    "disk",
+    "localip",
+    "battery",
+    "poweradapter",
+    "locale",
+    "break",
+    "colors"
+  ]
 }
 FF
 chmod 644 /etc/fastfetch/config.jsonc

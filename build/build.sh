@@ -104,6 +104,7 @@ cp "$SCRIPT_DIR/config.env" \
    "$SCRIPT_DIR/packages-add.txt" \
    "$SCRIPT_DIR/packages-remove.txt" "$ROOTFS/tmp/dk/"
 cp "$REPO_DIR/assets/darkian.png" \
+   "$REPO_DIR/assets/darkian.svg" \
    "$REPO_DIR/assets/darkian_square.png" \
    "$REPO_DIR/assets/darkian_square.svg" \
    "$REPO_DIR/assets/wallpaper.png" \
