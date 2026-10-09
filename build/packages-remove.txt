@@ -51,3 +51,7 @@ mlterm
 # Deb Steam is replaced by the full Flatpak Steam client
 steam-installer
 steam
+
+# Debian artwork: wallpapers, the "Debian Breeze" global theme, GRUB/login
+# branding. Darkian ships its own wallpaper + "Darkian" global theme instead.
+desktop-base

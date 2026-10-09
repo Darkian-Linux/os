@@ -258,6 +258,16 @@ for stale in "$ICONS"/*/apps/debian-logo.png "$ICONS"/*/apps/debian-logo.svg; do
 done
 # SVG logos ship via the rootfs overlay into hicolor/scalable/apps.
 
+# Some tools (including KDE's About-this-System) read /usr/lib/os-release
+# directly — make it the Darkian one too so no Debian branding shows up.
+if [[ -f /etc/os-release ]]; then
+  cp -f /etc/os-release /usr/lib/os-release
+  chmod 644 /usr/lib/os-release
+fi
+# Drop Debian's own pixmap logos.
+rm -f /usr/share/pixmaps/debian-logo.png /usr/share/pixmaps/debian-security.png \
+      /usr/share/pixmaps/install-debian.png 2>/dev/null || true
+
 apt-get purge -y imagemagick librsvg2-bin >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
@@ -305,6 +315,11 @@ cat > /lib/live/config/hooks/9998-darkian-shell.sh <<'HOOK'
 if id "${LIVE_USERNAME:-darkian}" >/dev/null 2>&1; then
   usermod -s /usr/bin/zsh "${LIVE_USERNAME:-darkian}" 2>/dev/null \
     || chsh -s /usr/bin/zsh "${LIVE_USERNAME:-darkian}" 2>/dev/null || true
+  H="/home/${LIVE_USERNAME:-darkian}"
+  if [ -d "$H" ] && [ ! -e "$H/.zshrc" ] && [ -e /etc/skel/.zshrc ]; then
+    cp /etc/skel/.zshrc "$H/.zshrc"
+    chown "${LIVE_USERNAME:-darkian}:${LIVE_USERNAME:-darkian}" "$H/.zshrc" 2>/dev/null || true
+  fi
 fi
 HOOK
 chmod 755 /lib/live/config/hooks/9998-darkian-shell.sh
@@ -444,6 +459,74 @@ cat > /etc/fastfetch/config.jsonc <<'FF'
 }
 FF
 chmod 644 /etc/fastfetch/config.jsonc
+
+# ---------------------------------------------------------------------------
+# Darkian Plasma Global Theme (appears as "Darkian" in System Settings)
+# ---------------------------------------------------------------------------
+LAF=/usr/share/plasma/look-and-feel/org.darkian.desktop
+rm -rf "$LAF"
+install -d -m 0755 "$LAF/contents/layouts" "$LAF/contents/previews"
+cat > "$LAF/metadata.json" <<'LAFMETA'
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            { "Name": "Darkian Linux", "Email": "build@darkian.xyz" }
+        ],
+        "Category": "",
+        "Description": "Darkian Linux default theme",
+        "Id": "org.darkian.desktop",
+        "License": "GPLv2+",
+        "Name": "Darkian",
+        "Website": "https://darkian.xyz"
+    }
+}
+LAFMETA
+cat > "$LAF/contents/defaults" <<'LAFDEF'
+[kdeglobals][KDE]
+widgetStyle=Breeze
+
+[kdeglobals][General]
+ColorScheme=BreezeDark
+
+[kdeglobals][Icons]
+Theme=breeze-dark
+
+[plasmarc][Theme]
+name=default
+
+[Wallpaper]
+Image=Next
+
+[kcminputrc][Mouse]
+cursorTheme=breeze_cursors
+
+[kwinrc][org.kde.kdecoration2]
+library=org.kde.breeze
+theme=Breeze
+
+[KSplash]
+Theme=org.kde.Breeze
+LAFDEF
+cat > "$LAF/contents/layouts/org.kde.plasma.desktop-layout.js" <<'LAFLAY'
+loadTemplate("org.kde.plasma.desktop.defaultPanel")
+
+var desktopsArray = desktopsForActivity(currentActivity());
+for (var j = 0; j < desktopsArray.length; j++) {
+    desktopsArray[j].wallpaperPlugin = 'org.kde.image';
+}
+LAFLAY
+[[ -f /tmp/dk/wallpaper.png ]] && cp -f /tmp/dk/wallpaper.png "$LAF/contents/previews/preview.png"
+chmod -R a+rX "$LAF"
+log "Darkian global theme installed: org.darkian.desktop"
+
+# Pin Konsole to the taskbar in the default panel layout (applies to both the
+# live session and freshly-installed systems, which both use this template).
+DEFAULT_PANEL=/usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js
+if [[ -f "$DEFAULT_PANEL" ]]; then
+  sed -i 's#panel.addWidget("org.kde.plasma.icontasks")#var icontasks = panel.addWidget("org.kde.plasma.icontasks")\nicontasks.currentConfigGroup = ["General"]\nicontasks.writeConfig("launchers", "applications:org.kde.konsole.desktop")#' "$DEFAULT_PANEL"
+  log "default panel: Konsole pinned to taskbar"
+fi
 
 # Fresh machine-id / systemd state so the first boot generates its own
 : > /etc/machine-id

@@ -15,10 +15,6 @@ strings:
     shortVersionedName:  Darkian Linux 13
     bootloaderEntryName: Darkian Linux
     productUrl:          https://darkian.xyz
-    supportUrl:          https://darkian.xyz
-    knownIssuesUrl:      https://darkian.xyz
-    releaseNotesUrl:     https://darkian.xyz
-    donateUrl:           https://darkian.xyz
 
 sidebar: widget
 navigation: widget
