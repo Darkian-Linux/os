@@ -1,5 +1,6 @@
 [General]
 ColorScheme=BreezeDark
+AccentColor=239,68,68
 
 [KDE]
 LookAndFeelPackage=org.darkian.desktop

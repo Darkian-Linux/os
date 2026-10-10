@@ -20,6 +20,10 @@ exit 101
 EOF
 chmod 755 /usr/sbin/policy-rc.d
 
+# apt's download sandbox runs as the unprivileged _apt user, which needs a
+# world-writable /tmp (apt creates mkstemp files there for signature checks).
+chmod 1777 /tmp /var/tmp 2>/dev/null || true
+
 # ---------------------------------------------------------------------------
 log "1/12  Enabling contrib/non-free apt components"
 # ---------------------------------------------------------------------------
@@ -147,7 +151,25 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-log "7/12  Installing XanMod kernel (used on the installed system)"
+log "7/13  Installing Obsidian (official .deb from GitHub releases)"
+# ---------------------------------------------------------------------------
+# Obsidian is not packaged by Debian; fetch the latest official amd64 .deb and
+# install it with apt so its library dependencies resolve from the Debian repos.
+OBS_URL=$(curl -fsSL --max-time 120 https://api.github.com/repos/obsidianmd/obsidian-releases/releases/latest \
+  | grep -Eo 'https://[^" ]*obsidian_[0-9.]+_amd64\.deb' | head -n1 || true)
+if [[ -n "$OBS_URL" ]]; then
+  if curl -fsSL --max-time 300 "$OBS_URL" -o /tmp/dk/obsidian.deb && apt-get install -y /tmp/dk/obsidian.deb; then
+    log "Obsidian installed from ${OBS_URL##*/}"
+  else
+    warn "Obsidian install failed"
+  fi
+  rm -f /tmp/dk/obsidian.deb
+else
+  warn "could not resolve Obsidian .deb URL — skipping"
+fi
+
+# ---------------------------------------------------------------------------
+log "8/13  Installing XanMod kernel (used on the installed system)"
 # ---------------------------------------------------------------------------
 if [[ "$ENABLE_XANMOD" == "true" ]]; then
   # apt reads ASCII-armored keys in trusted.gpg.d directly (no gpg needed).
@@ -181,13 +203,13 @@ if [[ "$ENABLE_XANMOD" == "true" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-log "8/12  Removing Plymouth (verbose text boot)"
+log "9/13  Removing Plymouth (verbose text boot)"
 # ---------------------------------------------------------------------------
 apt-get purge -y 'plymouth*' || warn "plymouth purge reported problems"
 rm -rf /etc/plymouth /usr/share/plymouth 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-log "9/12  Branding: icons, logos"
+log "10/13  Branding: icons, logos"
 # ---------------------------------------------------------------------------
 apt-get install -y imagemagick librsvg2-bin
 
@@ -268,10 +290,16 @@ fi
 rm -f /usr/share/pixmaps/debian-logo.png /usr/share/pixmaps/debian-security.png \
       /usr/share/pixmaps/install-debian.png 2>/dev/null || true
 
-apt-get purge -y imagemagick librsvg2-bin >/dev/null 2>&1 || true
+# imagemagick in trixie is split (imagemagick-7-common, imagemagick-7.q16): the
+# plain "imagemagick" name no longer matches, so resolve real package names.
+apt-get purge -y librsvg2-bin >/dev/null 2>&1 || true
+mapfile -t IM_PKGS < <(dpkg-query -W -f='${Package}\n' 'imagemagick*' 2>/dev/null || true)
+if ((${#IM_PKGS[@]})); then
+  apt-get purge -y "${IM_PKGS[@]}" >/dev/null 2>&1 || true
+fi
 
 # ---------------------------------------------------------------------------
-log "10/12  Calamares installer branding"
+log "11/13  Calamares installer branding"
 # ---------------------------------------------------------------------------
 BRANDING_DIR=/etc/calamares/branding
 rm -rf "$BRANDING_DIR/debian" "$BRANDING_DIR/default"
@@ -294,7 +322,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-log "11/12  Live identity, password, desktop polish"
+log "12/13  Live identity, password, desktop polish"
 # ---------------------------------------------------------------------------
 log "hostname: $(cat /etc/hostname)"
 log "live user: $(grep -E '^(LIVE_USERNAME|LIVE_USER_FULLNAME)=' /etc/live/config.conf | tr '\n' ' ')"
@@ -488,6 +516,7 @@ widgetStyle=Breeze
 
 [kdeglobals][General]
 ColorScheme=BreezeDark
+AccentColor=239,68,68
 
 [kdeglobals][Icons]
 Theme=breeze-dark
@@ -520,12 +549,14 @@ LAFLAY
 chmod -R a+rX "$LAF"
 log "Darkian global theme installed: org.darkian.desktop"
 
-# Pin Konsole to the taskbar in the default panel layout (applies to both the
-# live session and freshly-installed systems, which both use this template).
+# Pin default apps to the taskbar in the default panel layout (applies to both
+# the live session and freshly-installed systems, which both use this template).
+# Order: Dolphin, System Settings, Firefox, Discover, Konsole.
 DEFAULT_PANEL=/usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js
+DK_LAUNCHERS='applications:org.kde.dolphin.desktop,applications:systemsettings.desktop,applications:firefox.desktop,applications:org.kde.discover.desktop,applications:org.kde.konsole.desktop'
 if [[ -f "$DEFAULT_PANEL" ]]; then
-  sed -i 's#panel.addWidget("org.kde.plasma.icontasks")#var icontasks = panel.addWidget("org.kde.plasma.icontasks")\nicontasks.currentConfigGroup = ["General"]\nicontasks.writeConfig("launchers", "applications:org.kde.konsole.desktop")#' "$DEFAULT_PANEL"
-  log "default panel: Konsole pinned to taskbar"
+  sed -i "s#panel.addWidget(\"org.kde.plasma.icontasks\")#var icontasks = panel.addWidget(\"org.kde.plasma.icontasks\")\nicontasks.currentConfigGroup = [\"General\"]\nicontasks.writeConfig(\"launchers\", \"${DK_LAUNCHERS}\")#" "$DEFAULT_PANEL"
+  log "default panel: taskbar pinned (Dolphin, System Settings, Firefox, Discover, Konsole)"
 fi
 
 # Fresh machine-id / systemd state so the first boot generates its own
@@ -534,7 +565,7 @@ rm -f /var/lib/dbus/machine-id
 rm -f /var/lib/systemd/random-seed
 
 # ---------------------------------------------------------------------------
-log "12/12  Cleanup"
+log "13/13  Cleanup"
 # ---------------------------------------------------------------------------
 dpkg --configure -a || true
 apt-get autoremove -y --purge || warn "autoremove reported problems"
