@@ -1,0 +1,39 @@
+#!/bin/sh
+# Darkian Linux - install the chosen desktop environment as the *main* desktop.
+#
+# Called from the Calamares "contextualprocess" job with the id selected in the
+# packagechooser step. KDE Plasma ships in the image (so "kde" installs nothing
+# and works fully offline); any other desktop is downloaded from the Debian
+# mirrors and KDE Plasma is then removed, so the chosen desktop is the only one
+# installed.
+set -eu
+
+DE="${1:-kde}"
+
+case "$DE" in
+    kde)      exit 0 ;;
+    gnome)    TASK="task-gnome-desktop";    DM="gdm3" ;;
+    xfce)     TASK="task-xfce-desktop";     DM="lightdm" ;;
+    cinnamon) TASK="task-cinnamon-desktop"; DM="lightdm" ;;
+    mate)     TASK="task-mate-desktop";     DM="lightdm" ;;
+    lxqt)     TASK="task-lxqt-desktop";     DM="lightdm" ;;
+    *)        exit 0 ;;
+esac
+
+export DEBIAN_FRONTEND=noninteractive
+
+echo "Darkian: installing desktop '$DE' ($TASK) from the mirrors..."
+apt-get update
+apt-get -y install "$TASK"
+if [ -n "$DM" ]; then
+    apt-get -y install "$DM"
+fi
+
+echo "Darkian: removing KDE Plasma so '$DE' is the main desktop..."
+apt-get -y purge kde-plasma-desktop plasma-desktop kde-baseapps kde-standard task-kde-desktop sddm || true
+apt-get -y --purge autoremove || true
+
+echo "Darkian: selecting the display manager..."
+sh /usr/local/bin/darkian-set-default-dm || true
+
+exit 0

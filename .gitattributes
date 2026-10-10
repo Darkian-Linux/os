@@ -6,3 +6,4 @@
 rootfs/usr/local/bin/* text eol=lf
 *.png binary
 *.jpg binary
+*.qm binary

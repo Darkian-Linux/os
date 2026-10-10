@@ -551,51 +551,21 @@ log "Darkian global theme installed: org.darkian.desktop"
 
 # Pin default apps to the taskbar (Dolphin, System Settings, Firefox, Discover,
 # Konsole) for both the live session and fresh installs.
-#   1) Change the Icons-Only Task Manager's *default* launcher list (from
-#      org.kde.plasma.taskmanager) so any task manager without explicit config
-#      is prefilled. This also drops the preferred:// entries, which render a
-#      broken "?" icon when no default browser/file manager resolves.
-#   2) Write it into the default panel layout used on first login, and reload
-#      the widget config so the pins apply immediately.
+#
+# We only change the Icons-Only Task Manager's *default* launcher list (from
+# org.kde.plasma.taskmanager); the applet then fills that list in whenever it
+# has no explicit config of its own (fresh live session, fresh install).
+#
+# We deliberately do NOT call writeConfig("launchers", ...) from the panel
+# layout or from an autostart script: passing a comma-separated *string* to
+# writeConfig stores the whole string as ONE list entry, which Plasma renders
+# as a single broken, blank launcher. Relying on the applet default avoids that.
 DK_LAUNCHERS='applications:org.kde.dolphin.desktop,applications:systemsettings.desktop,applications:firefox.desktop,applications:org.kde.discover.desktop,applications:org.kde.konsole.desktop'
 TASKMGR_XML=/usr/share/plasma/plasmoids/org.kde.plasma.taskmanager/contents/config/main.xml
 if [[ -f "$TASKMGR_XML" ]]; then
   sed -i "s#<default>applications:systemsettings.desktop,applications:org.kde.discover.desktop,preferred://filemanager,preferred://browser</default>#<default>${DK_LAUNCHERS}</default>#" "$TASKMGR_XML"
 fi
-DEFAULT_PANEL=/usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js
-if [[ -f "$DEFAULT_PANEL" ]]; then
-  sed -i "s#panel.addWidget(\"org.kde.plasma.icontasks\")#var icontasks = panel.addWidget(\"org.kde.plasma.icontasks\")\nicontasks.currentConfigGroup = [\"General\"]\nicontasks.writeConfig(\"launchers\", \"${DK_LAUNCHERS}\")\nicontasks.reloadConfig()#" "$DEFAULT_PANEL"
-fi
-log "taskbar pinned: Dolphin, System Settings, Firefox, Discover, Konsole"
-
-# One-time login safety net: pin the launchers via the Plasma scripting API if
-# the template/default did not take effect (e.g. an existing user config).
-install -d -m 0755 /usr/local/bin
-cat > /usr/local/bin/darkian-pin-taskbar <<'PINTB'
-#!/bin/bash
-MARK="$HOME/.config/darkian-taskbar-pinned"
-[ -e "$MARK" ] && exit 0
-LAUNCHERS="applications:org.kde.dolphin.desktop,applications:systemsettings.desktop,applications:firefox.desktop,applications:org.kde.discover.desktop,applications:org.kde.konsole.desktop"
-SCRIPT="var ps=panels();for(var i=0;i<ps.length;i++){var ws=ps[i].widgets();for(var j=0;j<ws.length;j++){if(ws[j].type==='org.kde.plasma.icontasks'){ws[j].currentConfigGroup=['General'];ws[j].writeConfig('launchers','$LAUNCHERS');ws[j].reloadConfig();}}}"
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$SCRIPT" >/dev/null 2>&1; then
-    mkdir -p "$HOME/.config"; touch "$MARK"; exit 0
-  fi
-  sleep 3
-done
-exit 0
-PINTB
-chmod 755 /usr/local/bin/darkian-pin-taskbar
-install -d -m 0755 /etc/skel/.config/autostart
-cat > /etc/skel/.config/autostart/darkian-pin-taskbar.desktop <<'PINTBD'
-[Desktop Entry]
-Type=Application
-Name=Pin Darkian taskbar apps
-Exec=/usr/local/bin/darkian-pin-taskbar
-X-KDE-autostart-phase=2
-NoDisplay=true
-PINTBD
-chmod 644 /etc/skel/.config/autostart/darkian-pin-taskbar.desktop
+log "taskbar default launchers set: Dolphin, System Settings, Firefox, Discover, Konsole"
 
 # SDDM login theme: the packaged Debian theme references desktop-base assets we
 # removed, which left the greeter background/logo broken. Ship a self-contained

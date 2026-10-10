@@ -45,3 +45,8 @@ firmware-realtek
 firmware-misc-nonfree
 firmware-linux
 nvidia-driver
+
+# Filesystem tools for the "Erase disk" filesystem picker (ext4/btrfs/xfs
+# are in the base image; these add f2fs and jfs support).
+f2fs-tools
+jfsutils
