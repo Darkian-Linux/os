@@ -407,7 +407,7 @@ cat > /usr/local/bin/darkian-hide-keyboard <<'KBSCRIPT'
 #!/bin/bash
 # Remove the keyboard-layout indicator from the Plasma system tray.
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if qdbus org.kde.plasmashell /PlasmaShell \
+  if qdbus6 org.kde.plasmashell /PlasmaShell \
       org.kde.PlasmaShell.evaluateScript \
       "var ds=desktops();for(var i=0;i<ds.length;i++){var w=ds[i].widgetForType('org.kde.plasma.keyboardindicator');if(w){w.remove();}}" \
       >/dev/null 2>&1; then
@@ -549,15 +549,107 @@ LAFLAY
 chmod -R a+rX "$LAF"
 log "Darkian global theme installed: org.darkian.desktop"
 
-# Pin default apps to the taskbar in the default panel layout (applies to both
-# the live session and freshly-installed systems, which both use this template).
-# Order: Dolphin, System Settings, Firefox, Discover, Konsole.
-DEFAULT_PANEL=/usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js
+# Pin default apps to the taskbar (Dolphin, System Settings, Firefox, Discover,
+# Konsole) for both the live session and fresh installs.
+#   1) Change the Icons-Only Task Manager's *default* launcher list (from
+#      org.kde.plasma.taskmanager) so any task manager without explicit config
+#      is prefilled. This also drops the preferred:// entries, which render a
+#      broken "?" icon when no default browser/file manager resolves.
+#   2) Write it into the default panel layout used on first login, and reload
+#      the widget config so the pins apply immediately.
 DK_LAUNCHERS='applications:org.kde.dolphin.desktop,applications:systemsettings.desktop,applications:firefox.desktop,applications:org.kde.discover.desktop,applications:org.kde.konsole.desktop'
-if [[ -f "$DEFAULT_PANEL" ]]; then
-  sed -i "s#panel.addWidget(\"org.kde.plasma.icontasks\")#var icontasks = panel.addWidget(\"org.kde.plasma.icontasks\")\nicontasks.currentConfigGroup = [\"General\"]\nicontasks.writeConfig(\"launchers\", \"${DK_LAUNCHERS}\")#" "$DEFAULT_PANEL"
-  log "default panel: taskbar pinned (Dolphin, System Settings, Firefox, Discover, Konsole)"
+TASKMGR_XML=/usr/share/plasma/plasmoids/org.kde.plasma.taskmanager/contents/config/main.xml
+if [[ -f "$TASKMGR_XML" ]]; then
+  sed -i "s#<default>applications:systemsettings.desktop,applications:org.kde.discover.desktop,preferred://filemanager,preferred://browser</default>#<default>${DK_LAUNCHERS}</default>#" "$TASKMGR_XML"
 fi
+DEFAULT_PANEL=/usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js
+if [[ -f "$DEFAULT_PANEL" ]]; then
+  sed -i "s#panel.addWidget(\"org.kde.plasma.icontasks\")#var icontasks = panel.addWidget(\"org.kde.plasma.icontasks\")\nicontasks.currentConfigGroup = [\"General\"]\nicontasks.writeConfig(\"launchers\", \"${DK_LAUNCHERS}\")\nicontasks.reloadConfig()#" "$DEFAULT_PANEL"
+fi
+log "taskbar pinned: Dolphin, System Settings, Firefox, Discover, Konsole"
+
+# One-time login safety net: pin the launchers via the Plasma scripting API if
+# the template/default did not take effect (e.g. an existing user config).
+install -d -m 0755 /usr/local/bin
+cat > /usr/local/bin/darkian-pin-taskbar <<'PINTB'
+#!/bin/bash
+MARK="$HOME/.config/darkian-taskbar-pinned"
+[ -e "$MARK" ] && exit 0
+LAUNCHERS="applications:org.kde.dolphin.desktop,applications:systemsettings.desktop,applications:firefox.desktop,applications:org.kde.discover.desktop,applications:org.kde.konsole.desktop"
+SCRIPT="var ps=panels();for(var i=0;i<ps.length;i++){var ws=ps[i].widgets();for(var j=0;j<ws.length;j++){if(ws[j].type==='org.kde.plasma.icontasks'){ws[j].currentConfigGroup=['General'];ws[j].writeConfig('launchers','$LAUNCHERS');ws[j].reloadConfig();}}}"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$SCRIPT" >/dev/null 2>&1; then
+    mkdir -p "$HOME/.config"; touch "$MARK"; exit 0
+  fi
+  sleep 3
+done
+exit 0
+PINTB
+chmod 755 /usr/local/bin/darkian-pin-taskbar
+install -d -m 0755 /etc/skel/.config/autostart
+cat > /etc/skel/.config/autostart/darkian-pin-taskbar.desktop <<'PINTBD'
+[Desktop Entry]
+Type=Application
+Name=Pin Darkian taskbar apps
+Exec=/usr/local/bin/darkian-pin-taskbar
+X-KDE-autostart-phase=2
+NoDisplay=true
+PINTBD
+chmod 644 /etc/skel/.config/autostart/darkian-pin-taskbar.desktop
+
+# SDDM login theme: the packaged Debian theme references desktop-base assets we
+# removed, which left the greeter background/logo broken. Ship a self-contained
+# "darkian" theme using the Darkian wallpaper and make it the default.
+if [[ -d /usr/share/sddm/themes/breeze ]]; then
+  rm -rf /usr/share/sddm/themes/darkian
+  cp -a /usr/share/sddm/themes/breeze /usr/share/sddm/themes/darkian
+  sed -i 's#^background=.*#background=/usr/share/backgrounds/darkian/wallpaper.png#' \
+    /usr/share/sddm/themes/darkian/theme.conf
+  install -d -m 0755 /etc/sddm.conf.d
+  printf '[Theme]\nCurrent=darkian\n' > /etc/sddm.conf.d/10-darkian-theme.conf
+  chmod 644 /etc/sddm.conf.d/10-darkian-theme.conf
+  log "SDDM theme: darkian (Darkian wallpaper on the login screen)"
+fi
+
+# Live autologin: Debian trixie ships the X11 Plasma session as
+# "plasmax11.desktop", but live-config's SDDM component still autologins into
+# "plasma.desktop" (now the Wayland session), which can fail in VMs and drop the
+# user back to the greeter. Point it at X11 and also drop a /etc/sddm.conf.d
+# file so builds that only read conf.d still autologin.
+if [[ -f /lib/live/config/0085-sddm ]]; then
+  sed -i 's#LIVE_SESSION="plasma.desktop"#LIVE_SESSION="plasmax11.desktop"#' /lib/live/config/0085-sddm
+fi
+cat > /lib/live/config/0086-darkian-autologin <<'DKAUTO'
+#!/bin/sh
+# Darkian: ensure SDDM autologin for the live user into the X11 Plasma session.
+. /usr/lib/live/config.sh
+
+Init ()
+{
+	if ! pkg_is_installed "sddm" || component_was_executed "darkian-autologin"; then
+		exit 0
+	fi
+	echo -n " darkian-autologin"
+}
+
+Config ()
+{
+	U="${LIVE_USERNAME:-darkian}"
+	mkdir -p /etc/sddm.conf.d
+	cat > /etc/sddm.conf.d/00-live-autologin.conf << EOF
+[Autologin]
+User=${U}
+Session=plasmax11.desktop
+Relogin=false
+EOF
+	touch /var/lib/live/config/darkian-autologin
+}
+
+Init
+Config
+DKAUTO
+chmod 755 /lib/live/config/0086-darkian-autologin
+log "live autologin: SDDM -> plasmax11.desktop (X11)"
 
 # Fresh machine-id / systemd state so the first boot generates its own
 : > /etc/machine-id
