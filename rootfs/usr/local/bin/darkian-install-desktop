@@ -6,17 +6,22 @@
 # and works fully offline); any other desktop is downloaded from the Debian
 # mirrors and KDE Plasma is then removed, so the chosen desktop is the only one
 # installed.
+#
+# SDDM remains the display manager for every choice: it is already in the image,
+# uses the Darkian-branded login theme, and can launch any session. We do not
+# install (or let the desktop task pull in) GDM/LightDM, so the login screen is
+# never the Debian-branded greeter.
 set -eu
 
 DE="${1:-kde}"
 
 case "$DE" in
     kde)      exit 0 ;;
-    gnome)    TASK="task-gnome-desktop";    DM="gdm3" ;;
-    xfce)     TASK="task-xfce-desktop";     DM="lightdm" ;;
-    cinnamon) TASK="task-cinnamon-desktop"; DM="lightdm" ;;
-    mate)     TASK="task-mate-desktop";     DM="lightdm" ;;
-    lxqt)     TASK="task-lxqt-desktop";     DM="lightdm" ;;
+    gnome)    TASK="task-gnome-desktop" ;;
+    xfce)     TASK="task-xfce-desktop" ;;
+    cinnamon) TASK="task-cinnamon-desktop" ;;
+    mate)     TASK="task-mate-desktop" ;;
+    lxqt)     TASK="task-lxqt-desktop" ;;
     *)        exit 0 ;;
 esac
 
@@ -25,15 +30,22 @@ export DEBIAN_FRONTEND=noninteractive
 echo "Darkian: installing desktop '$DE' ($TASK) from the mirrors..."
 apt-get update
 apt-get -y install "$TASK"
-if [ -n "$DM" ]; then
-    apt-get -y install "$DM"
-fi
 
 echo "Darkian: removing KDE Plasma so '$DE' is the main desktop..."
-apt-get -y purge kde-plasma-desktop plasma-desktop kde-baseapps kde-standard task-kde-desktop sddm || true
+apt-get -y purge kde-plasma-desktop plasma-desktop kde-baseapps kde-standard task-kde-desktop || true
 apt-get -y --purge autoremove || true
 
-echo "Darkian: selecting the display manager..."
-sh /usr/local/bin/darkian-set-default-dm || true
+# Keep SDDM as the display manager (it is already in the image, with the
+# Darkian theme). Re-install it in case autoremove removed it, and disable any
+# desktop-provided greeter so SDDM is the one actually used.
+echo "Darkian: keeping SDDM (Darkian theme) as the display manager..."
+apt-get -y install sddm
+for dm in gdm3 gdm lightdm; do
+    if [ -e "/lib/systemd/system/$dm.service" ]; then
+        ln -sf /dev/null "/etc/systemd/system/$dm.service"
+    fi
+done
+printf '%s\n' /usr/bin/sddm > /etc/X11/default-display-manager
+ln -sf /lib/systemd/system/sddm.service /etc/systemd/system/display-manager.service
 
 exit 0

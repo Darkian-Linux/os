@@ -1,14 +1,13 @@
 #!/bin/sh
 # Darkian Linux - choose the default display manager for the installed system.
 #
-# The live image ships SDDM, so /etc/X11/default-display-manager already
-# points at SDDM and Debian will not switch it when another desktop's
-# display manager is installed. This runs from the Calamares shellprocess
-# job after the packages module and selects the most specific available
-# manager (GDM for GNOME, LightDM for Xfce/Cinnamon/MATE, else SDDM).
+# The live image ships SDDM with the Darkian-branded theme and it can launch
+# any session, so Darkian keeps SDDM as the display manager for every desktop
+# (no Debian-branded GDM/LightDM greeter). This runs from the Calamares
+# shellprocess job after the chosen desktop is installed.
 set -eu
 
-for dm in gdm3 lightdm sddm; do
+for dm in sddm gdm3 lightdm; do
     case "$dm" in
         gdm3)    bin="/usr/sbin/gdm3" ;;
         lightdm) bin="/usr/sbin/lightdm" ;;
